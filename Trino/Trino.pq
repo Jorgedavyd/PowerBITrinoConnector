@@ -336,6 +336,15 @@ GetPage = (url as text, User as text, Retries as number, Timeout as number, opti
                     DataTableReType = Table.TransformColumnTypes(DataTableReName, ColumnTableMappingTransposeList)
                 in
                     DataTableReType
+            else if (
+                Record.HasFields(body, {"columns"})
+                and not List.IsEmpty(body[columns])
+                and not Record.HasFields(body, {"error"})
+            ) then
+                #table(
+                    List.Transform(body[columns], each _[name]),
+                    {}
+                )
             else if (Record.HasFields(body, {"error"})) then 
                 let
                     Output = error Error.Record("Trino Error: " & body[error][errorName], body[error][message], body[error][failureInfo][stack])
@@ -602,7 +611,12 @@ Table.GenerateByPage = (getNextPage as function) as table =>
         ),
         // concatenate the pages together and filter out empty pages
         tableOfPages = Table.FromList(listOfPages, Splitter.SplitByNothing(), {"Column1"}),
-        tableOfPagesFiltered = Table.SelectRows(tableOfPages, each Table.IsEmpty([Column1]) = false),
+        tableOfPagesFiltered = Table.SelectRows(
+            tableOfPages,
+            each
+                not Table.IsEmpty([Column1])
+                or not List.IsEmpty(Table.ColumnNames([Column1]))
+        ),
         firstRow = tableOfPagesFiltered{0}?
     in
         // tableOfPagesFiltered;
