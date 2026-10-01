@@ -618,25 +618,25 @@ Table.GenerateByPage = (getNextPage as function) as table =>
             (lastPage) => lastPage <> null,     // stop when the function returns null
             (lastPage) => getNextPage(lastPage) // pass the previous page to the next function call
         ),
-        // concatenate the pages together and filter out empty pages
+        // Keep empty pages for their schema, but never expand them into null rows.
         tableOfPages = Table.FromList(listOfPages, Splitter.SplitByNothing(), {"Column1"}),
-        tableOfPagesFiltered = Table.SelectRows(
+        pagesWithSchema = Table.SelectRows(
             tableOfPages,
             each
                 not Table.IsEmpty([Column1])
                 or not List.IsEmpty(Table.ColumnNames([Column1]))
         ),
-        firstRow = tableOfPagesFiltered{0}?
+        dataPages = Table.SelectRows(tableOfPages, each not Table.IsEmpty([Column1])),
+        firstSchemaRow = pagesWithSchema{0}?
     in
-        // tableOfPagesFiltered;
-        // if we didn't get back any pages of data, return an empty table
-        // otherwise set the table type based on the columns of the first page
-        if (firstRow = null) then
+        if (firstSchemaRow = null) then
             Table.FromRows({})
-        else        
+        else if (Table.IsEmpty(dataPages)) then
+            firstSchemaRow[Column1]
+        else
             Value.ReplaceType(
-                Table.ExpandTableColumn(tableOfPagesFiltered, "Column1", Table.ColumnNames(firstRow[Column1])),
-                Value.Type(firstRow[Column1])
+                Table.ExpandTableColumn(dataPages, "Column1", Table.ColumnNames(firstSchemaRow[Column1])),
+                Value.Type(firstSchemaRow[Column1])
             );
 
 
